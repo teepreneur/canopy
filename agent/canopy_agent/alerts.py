@@ -76,7 +76,7 @@ class AlertManager:
             if keyword in title_lower:
                 logger.info("Keyword alert: '%s' found in window title", keyword)
                 asyncio.create_task(
-                    self.send_alert("keyword_match",
+                    self.send_alert("suspicious_activity",
                                     f"Window title contains '{keyword}': {title[:200]}")
                 )
                 return
@@ -94,7 +94,7 @@ class AlertManager:
             logger.info("Rapid app switching detected: %d switches in %ds",
                         count, RAPID_SWITCH_WINDOW)
             asyncio.create_task(
-                self.send_alert("rapid_switching",
+                self.send_alert("suspicious_activity",
                                 f"{count} app switches in {RAPID_SWITCH_WINDOW}s "
                                 f"(possible evasion)")
             )
@@ -114,7 +114,7 @@ class AlertManager:
             logger.info("Repeated blocked access: %s (%d times in %ds)",
                         domain_or_app, recent_attempts, REPEATED_BLOCK_WINDOW)
             asyncio.create_task(
-                self.send_alert("repeated_blocked_access",
+                self.send_alert("blocked_attempt",
                                 f"{domain_or_app} blocked {recent_attempts} times "
                                 f"in {REPEATED_BLOCK_WINDOW}s")
             )
