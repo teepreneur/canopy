@@ -7,9 +7,9 @@ import signal
 import sys
 
 from .config import AgentConfig, Rules
-from .dns_filter import DNSFilter
+from .dns_blocker import DNSBlocker
 from .blocked_page import BlockedPageServer
-from .app_monitor import AppMonitor
+from .app_locker import AppLocker
 from .activity import ActivityTracker
 from .kill_switch import KillSwitch
 from .ws_client import WSClient
@@ -23,30 +23,30 @@ class CanopyAgent:
     def __init__(self):
         self.config = AgentConfig.load()
         self.rules = Rules.load()
-        self.dns_filter = DNSFilter(self.rules, listen_port=self.config.dns_port)
+        self.dns_blocker = DNSBlocker(self.rules, listen_port=self.config.dns_port)
         self.blocked_page = BlockedPageServer(port=self.config.blocked_page_port)
-        self.app_monitor = AppMonitor(self.rules)
+        self.app_locker = AppLocker(self.rules)
         self.activity = ActivityTracker(self.config)
         self.kill_switch = KillSwitch(self.config)
         self.ws_client = WSClient(self.config)
         self.alerts = AlertManager(self.config)
         self._running = False
+        self._alert_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         logger.info("Starting Canopy agent v0.1.0 (device=%s)", self.config.device_id)
         self._running = True
 
-        self.dns_filter.on_query(self.activity.record_dns_query)
-        self.dns_filter.on_query(lambda domain: asyncio.create_task(
-            self.alerts.send_alert("blocked_site", domain)
-        ) if self.rules.is_domain_blocked(domain) else None)
-
+        self._wire_dns_callbacks()
+        self._wire_app_callbacks()
         self._register_ws_handlers()
 
         await self.blocked_page.start()
-        await self.dns_filter.start()
-        await self.app_monitor.start()
+        await self.dns_blocker.start()
+        await self.app_locker.start()
         await self.activity.start()
+
+        self._alert_task = asyncio.create_task(self._alert_detection_loop())
 
         if self.config.is_registered:
             await self.ws_client.start()
@@ -57,19 +57,62 @@ class CanopyAgent:
     async def stop(self) -> None:
         logger.info("Stopping Canopy agent...")
         self._running = False
+        if self._alert_task:
+            self._alert_task.cancel()
+            try:
+                await self._alert_task
+            except asyncio.CancelledError:
+                pass
         await self.ws_client.stop()
         await self.activity.stop()
-        await self.app_monitor.stop()
-        await self.dns_filter.stop()
+        await self.app_locker.stop()
+        await self.dns_blocker.stop()
         await self.blocked_page.stop()
         if self.kill_switch.is_active:
             await self.kill_switch.deactivate()
         logger.info("Canopy agent stopped")
 
+    def _wire_dns_callbacks(self) -> None:
+        self.dns_blocker.on_query(self.activity.record_dns_query)
+
+        def _on_dns_blocked(domain: str) -> None:
+            self.alerts.record_blocked_access(domain)
+            asyncio.create_task(self.alerts.send_alert("blocked_site", domain))
+
+        self.dns_blocker.on_blocked(_on_dns_blocked)
+
+    def _wire_app_callbacks(self) -> None:
+        def _on_app_blocked(name: str, bundle_id: str) -> None:
+            self.alerts.record_blocked_access(bundle_id or name)
+            asyncio.create_task(
+                self.alerts.send_alert("blocked_app", f"{name} ({bundle_id})")
+            )
+
+        self.app_locker.on_blocked(_on_app_blocked)
+
     def _register_ws_handlers(self) -> None:
         self.ws_client.on("rules_update", self._handle_rules_update)
         self.ws_client.on("command", self._handle_command)
         self.ws_client.on("access_response", self.alerts.handle_access_response)
+
+    async def _alert_detection_loop(self) -> None:
+        """Periodic checks for evasion behavior and keyword alerts."""
+        try:
+            while self._running:
+                await asyncio.sleep(5)
+
+                switch_times = self.app_locker.get_recent_switches()
+                self.alerts.check_rapid_switching(switch_times)
+
+                from .activity import _get_active_window
+                try:
+                    _, title, _ = _get_active_window()
+                    if title:
+                        self.alerts.check_window_title(title)
+                except Exception:
+                    pass
+        except asyncio.CancelledError:
+            pass
 
     async def _handle_rules_update(self, msg: dict) -> None:
         rules_data = msg.get("rules", {})
@@ -152,7 +195,7 @@ async def _run_agent(verbose: bool) -> None:
 
     if not agent.config.is_registered:
         logger.warning("Device not registered. Run 'canopy-agent setup' first.")
-        logger.info("Starting in offline mode (DNS filter + app monitor with cached rules)")
+        logger.info("Starting in offline mode (DNS blocker + app locker with cached rules)")
 
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
