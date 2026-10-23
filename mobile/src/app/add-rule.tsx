@@ -4,43 +4,47 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  Pressable,
 } from "react-native";
 import { Button } from "../components/Button";
+import { useCreateRule } from "../hooks/useRules";
 import { colors, borderRadius, spacing } from "../lib/theme";
-import type { Rule } from "../types/api";
+import type { RuleType } from "../types/api";
 
-const RULE_TYPES: { value: Rule["rule_type"]; label: string; placeholder: string }[] = [
+const RULE_TYPES: { value: RuleType; label: string; placeholder: string }[] = [
   { value: "block_site", label: "Block Website", placeholder: "e.g. tiktok.com" },
-  { value: "block_app", label: "Block App", placeholder: "e.g. Discord" },
-  { value: "time_limit", label: "Time Limit", placeholder: "e.g. Gaming, Social Media" },
+  { value: "block_app", label: "Block App", placeholder: "e.g. com.apple.Safari" },
   { value: "schedule", label: "Schedule", placeholder: "e.g. Homework time" },
 ];
 
 export default function AddRuleScreen() {
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
-  const [ruleType, setRuleType] = useState<Rule["rule_type"]>("block_site");
+  const [ruleType, setRuleType] = useState<RuleType>("block_site");
   const [target, setTarget] = useState("");
-  const [loading, setLoading] = useState(false);
+  const createRule = useCreateRule();
 
   const selected = RULE_TYPES.find((r) => r.value === ruleType)!;
 
   const handleCreate = () => {
     if (!target.trim()) {
-      Alert.alert("Missing target", "Please enter what to block or limit.");
+      Alert.alert("Missing target", "Please enter what to block or schedule.");
       return;
     }
-    setLoading(true);
-    // Mock save
-    setTimeout(() => {
-      setLoading(false);
-      router.back();
-    }, 500);
+    createRule.mutate(
+      {
+        device_id: deviceId,
+        rule_type: ruleType,
+        target: target.trim(),
+      },
+      {
+        onSuccess: () => router.back(),
+      },
+    );
   };
 
   return (
@@ -48,16 +52,27 @@ export default function AddRuleScreen() {
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.sectionTitle}>Rule Type</Text>
         <View style={styles.typeGrid}>
           {RULE_TYPES.map((type) => (
             <Pressable
               key={type.value}
-              style={[styles.typeChip, ruleType === type.value && styles.typeChipActive]}
+              style={[
+                styles.typeChip,
+                ruleType === type.value && styles.typeChipActive,
+              ]}
               onPress={() => setRuleType(type.value)}
             >
-              <Text style={[styles.typeText, ruleType === type.value && styles.typeTextActive]}>
+              <Text
+                style={[
+                  styles.typeText,
+                  ruleType === type.value && styles.typeTextActive,
+                ]}
+              >
                 {type.label}
               </Text>
             </Pressable>
@@ -78,7 +93,7 @@ export default function AddRuleScreen() {
         <Button
           title="Create Rule"
           onPress={handleCreate}
-          loading={loading}
+          loading={createRule.isPending}
           style={{ marginTop: spacing.lg }}
         />
       </ScrollView>

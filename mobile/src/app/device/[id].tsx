@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
-  FlatList,
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,7 +11,10 @@ import {
   View,
 } from "react-native";
 import { Card } from "../../components/Card";
-import { mockActivity, mockDevices, mockRules } from "../../lib/mock-data";
+import { useActivityLogs } from "../../hooks/useActivity";
+import { useDevice, useSendCommand } from "../../hooks/useDevices";
+import { useRules, useDeleteRule, useUpdateRule } from "../../hooks/useRules";
+import { useChildren } from "../../hooks/useFamily";
 import { colors, borderRadius, spacing } from "../../lib/theme";
 import type { ActivityLog, Rule } from "../../types/api";
 
@@ -35,44 +38,51 @@ function formatDuration(seconds: number): string {
 }
 
 function ActivityItem({ log }: { log: ActivityLog }) {
-  const icon = log.activity_type === "website" ? "globe-outline" : "apps-outline";
+  const icon =
+    log.activity_type === "site_visit" ? "globe-outline" : "apps-outline";
   return (
     <View style={styles.activityRow}>
-      <View style={[styles.actIcon, log.is_blocked && { backgroundColor: colors.coral + "20" }]}>
-        <Ionicons
-          name={icon as any}
-          size={18}
-          color={log.is_blocked ? colors.coral : colors.forest}
-        />
+      <View style={styles.actIcon}>
+        <Ionicons name={icon as any} size={18} color={colors.forest} />
       </View>
       <View style={styles.actInfo}>
-        <Text style={[styles.actTitle, log.is_blocked && { color: colors.coral }]}>
-          {log.title}
-          {log.is_blocked && !log.title.includes("Blocked") && " (Blocked)"}
-        </Text>
+        <Text style={styles.actTitle}>{log.title ?? log.target}</Text>
         <Text style={styles.actMeta}>
-          {log.category ?? log.activity_type} · {timeAgo(log.timestamp)}
+          {log.activity_type === "site_visit" ? "Site" : "App"} ·{" "}
+          {timeAgo(log.timestamp)}
         </Text>
       </View>
       {log.duration_seconds > 0 && (
-        <Text style={styles.duration}>{formatDuration(log.duration_seconds)}</Text>
+        <Text style={styles.duration}>
+          {formatDuration(log.duration_seconds)}
+        </Text>
       )}
     </View>
   );
 }
 
-function RuleItem({ rule, onToggle, onDelete }: { rule: Rule; onToggle: () => void; onDelete: () => void }) {
+function RuleItem({
+  rule,
+  onToggle,
+  onDelete,
+}: {
+  rule: Rule;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
   const icon =
-    rule.rule_type === "block_site" ? "globe-outline" :
-    rule.rule_type === "block_app" ? "apps-outline" :
-    rule.rule_type === "time_limit" ? "time-outline" :
-    "calendar-outline";
+    rule.rule_type === "block_site"
+      ? "globe-outline"
+      : rule.rule_type === "block_app"
+        ? "apps-outline"
+        : "calendar-outline";
 
   const typeLabel =
-    rule.rule_type === "block_site" ? "Block Site" :
-    rule.rule_type === "block_app" ? "Block App" :
-    rule.rule_type === "time_limit" ? "Time Limit" :
-    "Schedule";
+    rule.rule_type === "block_site"
+      ? "Block Site"
+      : rule.rule_type === "block_app"
+        ? "Block App"
+        : "Schedule";
 
   return (
     <View style={styles.ruleRow}>
@@ -82,17 +92,18 @@ function RuleItem({ rule, onToggle, onDelete }: { rule: Rule; onToggle: () => vo
       <View style={styles.ruleInfo}>
         <Text style={styles.ruleTarget}>{rule.target}</Text>
         <Text style={styles.ruleMeta}>{typeLabel}</Text>
-        {rule.schedule && (
+        {rule.schedule_days && rule.schedule_start && (
           <Text style={styles.ruleMeta}>
-            {rule.schedule.days.join(", ")} · {rule.schedule.start_time}–{rule.schedule.end_time}
+            {rule.schedule_days.join(", ")} · {rule.schedule_start}–
+            {rule.schedule_end}
           </Text>
         )}
       </View>
       <Switch
-        value={rule.is_active}
+        value={rule.enabled}
         onValueChange={onToggle}
         trackColor={{ false: colors.border, true: colors.sage }}
-        thumbColor={rule.is_active ? colors.forest : colors.stone}
+        thumbColor={rule.enabled ? colors.forest : colors.stone}
       />
       <Pressable onPress={onDelete} hitSlop={8}>
         <Ionicons name="trash-outline" size={18} color={colors.coral} />
@@ -103,60 +114,127 @@ function RuleItem({ rule, onToggle, onDelete }: { rule: Rule; onToggle: () => vo
 
 export default function DeviceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const device = mockDevices.find((d) => d.id === id) ?? mockDevices[0];
+  const { data: device, isLoading: deviceLoading } = useDevice(id);
+  const { data: activityLogs } = useActivityLogs(id);
+  const { data: rules, isLoading: rulesLoading } = useRules(id);
+  const { data: children } = useChildren();
+  const sendCommand = useSendCommand();
+  const deleteRule = useDeleteRule();
+  const updateRule = useUpdateRule();
   const [activeTab, setActiveTab] = useState<Tab>("activity");
-  const [rules, setRules] = useState(mockRules.filter((r) => r.device_id === device.id));
-  const activity = mockActivity.filter((a) => a.device_id === device.id);
+
+  if (deviceLoading || !device) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.forest} />
+      </View>
+    );
+  }
+
+  const childName = children?.find(
+    (c) => c.id === device.child_profile_id,
+  )?.name;
+  const activity = activityLogs ?? [];
+  const ruleList = rules ?? [];
+
+  const handleKillSwitch = (enable: boolean) => {
+    sendCommand.mutate({
+      device_id: device.id,
+      command_type: enable ? "restore_internet" : "kill_internet",
+    });
+  };
 
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
-      {/* Device header */}
       <Card style={styles.headerCard}>
         <View style={styles.deviceHeader}>
           <View>
             <Text style={styles.deviceName}>{device.name}</Text>
-            <Text style={styles.childLabel}>{device.child_name} · {device.device_type}</Text>
+            <Text style={styles.childLabel}>
+              {childName ?? "Unassigned"} · {device.platform}
+            </Text>
           </View>
           <View style={styles.statusChip}>
-            <View style={[styles.statusDot, { backgroundColor: device.is_online ? colors.success : colors.stone }]} />
-            <Text style={styles.statusText}>{device.is_online ? "Online" : "Offline"}</Text>
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor: device.is_online
+                    ? colors.success
+                    : colors.stone,
+                },
+              ]}
+            />
+            <Text style={styles.statusText}>
+              {device.is_online ? "Online" : "Offline"}
+            </Text>
           </View>
         </View>
         <View style={styles.killSwitchRow}>
           <View>
             <Text style={styles.killTitle}>Internet Access</Text>
-            <Text style={styles.killSub}>Toggle to instantly block all internet</Text>
+            <Text style={styles.killSub}>
+              Send kill/restore command to device
+            </Text>
           </View>
-          <Switch
-            value={device.internet_enabled}
-            onValueChange={() => {}}
-            trackColor={{ false: colors.coral + "40", true: colors.sage }}
-            thumbColor={device.internet_enabled ? colors.forest : colors.coral}
-          />
+          <View style={styles.killButtons}>
+            <Pressable
+              style={[styles.killBtn, styles.killBtnDanger]}
+              onPress={() => handleKillSwitch(false)}
+            >
+              <Ionicons name="close-circle" size={16} color={colors.white} />
+              <Text style={styles.killBtnText}>Kill</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.killBtn, styles.killBtnRestore]}
+              onPress={() => handleKillSwitch(true)}
+            >
+              <Ionicons name="checkmark-circle" size={16} color={colors.white} />
+              <Text style={styles.killBtnText}>Restore</Text>
+            </Pressable>
+          </View>
         </View>
       </Card>
 
-      {/* Tabs */}
       <View style={styles.tabRow}>
         <Pressable
           style={[styles.tab, activeTab === "activity" && styles.tabActive]}
           onPress={() => setActiveTab("activity")}
         >
-          <Ionicons name="list-outline" size={16} color={activeTab === "activity" ? colors.forest : colors.stone} />
-          <Text style={[styles.tabText, activeTab === "activity" && styles.tabTextActive]}>Activity</Text>
+          <Ionicons
+            name="list-outline"
+            size={16}
+            color={activeTab === "activity" ? colors.forest : colors.stone}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "activity" && styles.tabTextActive,
+            ]}
+          >
+            Activity
+          </Text>
         </Pressable>
         <Pressable
           style={[styles.tab, activeTab === "rules" && styles.tabActive]}
           onPress={() => setActiveTab("rules")}
         >
-          <Ionicons name="shield-outline" size={16} color={activeTab === "rules" ? colors.forest : colors.stone} />
-          <Text style={[styles.tabText, activeTab === "rules" && styles.tabTextActive]}>
-            Rules ({rules.length})
+          <Ionicons
+            name="shield-outline"
+            size={16}
+            color={activeTab === "rules" ? colors.forest : colors.stone}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "rules" && styles.tabTextActive,
+            ]}
+          >
+            Rules ({ruleList.length})
           </Text>
         </Pressable>
       </View>
 
-      {/* Tab content */}
       {activeTab === "activity" ? (
         <Card>
           {activity.length === 0 ? (
@@ -169,25 +247,35 @@ export default function DeviceDetailScreen() {
         <>
           <Pressable
             style={styles.addRuleButton}
-            onPress={() => router.push({ pathname: "/add-rule", params: { deviceId: device.id } })}
+            onPress={() =>
+              router.push({
+                pathname: "/add-rule",
+                params: { deviceId: device.id },
+              })
+            }
           >
-            <Ionicons name="add-circle-outline" size={20} color={colors.forest} />
+            <Ionicons
+              name="add-circle-outline"
+              size={20}
+              color={colors.forest}
+            />
             <Text style={styles.addRuleText}>Add Rule</Text>
           </Pressable>
           <Card>
-            {rules.length === 0 ? (
+            {ruleList.length === 0 ? (
               <Text style={styles.emptyText}>No rules configured</Text>
             ) : (
-              rules.map((rule) => (
+              ruleList.map((rule) => (
                 <RuleItem
                   key={rule.id}
                   rule={rule}
                   onToggle={() =>
-                    setRules((prev) =>
-                      prev.map((r) => (r.id === rule.id ? { ...r, is_active: !r.is_active } : r)),
-                    )
+                    updateRule.mutate({
+                      ruleId: rule.id,
+                      enabled: !rule.enabled,
+                    })
                   }
-                  onDelete={() => setRules((prev) => prev.filter((r) => r.id !== rule.id))}
+                  onDelete={() => deleteRule.mutate(rule.id)}
                 />
               ))
             )}
@@ -200,6 +288,11 @@ export default function DeviceDetailScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   container: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
@@ -259,6 +352,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.stone,
     marginTop: 1,
+  },
+  killButtons: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  killBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+  },
+  killBtnDanger: {
+    backgroundColor: colors.coral,
+  },
+  killBtnRestore: {
+    backgroundColor: colors.forest,
+  },
+  killBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.white,
   },
   tabRow: {
     flexDirection: "row",

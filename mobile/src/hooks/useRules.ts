@@ -1,25 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../lib/api";
-import type { CreateRuleRequest, Rule } from "../types/api";
+import type { Rule, RuleCreate } from "../types/api";
 
-export function useRules(deviceId: string) {
+export function useRules(deviceId?: string) {
   return useQuery({
     queryKey: ["rules", deviceId],
-    queryFn: () => apiFetch<Rule[]>(`/rules?device_id=${deviceId}`),
-    enabled: !!deviceId,
+    queryFn: () => {
+      const qs = deviceId ? `?device_id=${deviceId}` : "";
+      return apiFetch<Rule[]>(`/rules${qs}`);
+    },
   });
 }
 
 export function useCreateRule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (rule: CreateRuleRequest) =>
+    mutationFn: (rule: RuleCreate) =>
       apiFetch<Rule>("/rules", {
         method: "POST",
         body: JSON.stringify(rule),
       }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["rules", variables.device_id] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
     },
   });
 }
@@ -27,10 +29,10 @@ export function useCreateRule() {
 export function useDeleteRule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ ruleId, deviceId }: { ruleId: string; deviceId: string }) =>
+    mutationFn: (ruleId: string) =>
       apiFetch(`/rules/${ruleId}`, { method: "DELETE" }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["rules", variables.deviceId] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
     },
   });
 }
@@ -38,13 +40,16 @@ export function useDeleteRule() {
 export function useUpdateRule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ ruleId, ...body }: { ruleId: string; deviceId: string; is_active?: boolean; target?: string }) =>
-      apiFetch(`/rules/${ruleId}`, {
+    mutationFn: ({
+      ruleId,
+      ...body
+    }: { ruleId: string } & Partial<RuleCreate>) =>
+      apiFetch<Rule>(`/rules/${ruleId}`, {
         method: "PUT",
         body: JSON.stringify(body),
       }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["rules", variables.deviceId] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
     },
   });
 }

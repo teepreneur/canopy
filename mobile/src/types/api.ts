@@ -2,7 +2,7 @@ export interface User {
   id: string;
   email: string;
   full_name: string;
-  family_id: string;
+  created_at: string;
 }
 
 export interface AuthTokens {
@@ -22,72 +22,43 @@ export interface RegisterRequest {
   full_name: string;
 }
 
-export interface Device {
+export interface Family {
   id: string;
   name: string;
-  device_type: string;
-  os_version: string;
-  is_online: boolean;
-  last_seen: string;
-  child_name?: string;
-  internet_enabled: boolean;
-}
-
-export interface ActivityLog {
-  id: string;
-  device_id: string;
-  activity_type: "website" | "app" | "search";
-  title: string;
-  url?: string;
-  app_name?: string;
-  duration_seconds: number;
-  timestamp: string;
-  category?: string;
-  is_blocked: boolean;
-}
-
-export interface ActivitySummary {
-  device_id: string;
-  total_screen_time_minutes: number;
-  top_apps: { name: string; minutes: number }[];
-  top_sites: { domain: string; visits: number }[];
-  blocked_attempts: number;
-  period: string;
-}
-
-export interface Alert {
-  id: string;
-  device_id: string;
-  device_name: string;
-  alert_type: "blocked_attempt" | "suspicious_activity" | "access_request" | "device_offline";
-  title: string;
-  description: string;
-  severity: "low" | "medium" | "high";
-  timestamp: string;
-  is_reviewed: boolean;
-  metadata?: Record<string, unknown>;
-}
-
-export interface Rule {
-  id: string;
-  device_id: string;
-  rule_type: "block_site" | "block_app" | "time_limit" | "schedule";
-  target: string;
-  is_active: boolean;
-  schedule?: {
-    days: string[];
-    start_time: string;
-    end_time: string;
-  };
   created_at: string;
 }
 
-export interface CreateRuleRequest {
-  device_id: string;
-  rule_type: Rule["rule_type"];
-  target: string;
-  is_active?: boolean;
-  schedule?: Rule["schedule"];
+export interface FamilyCreate {
+  name: string;
+}
+
+export interface ChildProfile {
+  id: string;
+  family_id: string;
+  name: string;
+  age?: number;
+  avatar_url?: string;
+  created_at: string;
+}
+
+export interface ChildProfileCreate {
+  name: string;
+  age?: number;
+  avatar_url?: string;
+}
+
+export interface Device {
+  id: string;
+  family_id: string;
+  child_profile_id: string | null;
+  name: string;
+  platform: string;
+  is_online: boolean;
+  last_heartbeat: string | null;
+}
+
+export interface PairingCodeCreate {
+  child_profile_id?: string;
 }
 
 export interface PairingCode {
@@ -95,15 +66,88 @@ export interface PairingCode {
   expires_at: string;
 }
 
-export interface Child {
+export type ActivityType = "site_visit" | "app_usage";
+
+export interface ActivityLog {
   id: string;
-  name: string;
-  age?: number;
-  avatar_color: string;
+  device_id: string;
+  child_profile_id: string | null;
+  activity_type: ActivityType;
+  target: string;
+  title: string | null;
+  duration_seconds: number;
+  timestamp: string;
 }
 
-export interface Family {
+export interface DailySummary {
+  date: string;
+  total_screen_time_seconds: number;
+  top_sites: { target: string; duration_seconds: number }[];
+  top_apps: { target: string; duration_seconds: number }[];
+}
+
+export type AlertType =
+  | "blocked_attempt"
+  | "suspicious_activity"
+  | "access_request"
+  | "device_offline";
+
+export type AlertStatus = "pending" | "acknowledged" | "approved" | "denied";
+
+export interface Alert {
   id: string;
-  name: string;
-  children: Child[];
+  family_id: string;
+  device_id: string;
+  child_profile_id: string | null;
+  alert_type: AlertType;
+  status: AlertStatus;
+  title: string;
+  detail: string | null;
+  target: string | null;
+  acknowledged: boolean;
+  created_at: string;
+}
+
+export interface AlertAction {
+  status: AlertStatus;
+}
+
+export type RuleType = "block_site" | "block_app" | "schedule";
+
+export interface Rule {
+  id: string;
+  family_id: string;
+  device_id: string | null;
+  child_profile_id: string | null;
+  rule_type: RuleType;
+  target: string;
+  enabled: boolean;
+  schedule_days: string[] | null;
+  schedule_start: string | null;
+  schedule_end: string | null;
+  created_at: string;
+}
+
+export interface RuleCreate {
+  device_id?: string;
+  child_profile_id?: string;
+  rule_type: RuleType;
+  target: string;
+  enabled?: boolean;
+  schedule_days?: string[];
+  schedule_start?: string;
+  schedule_end?: string;
+}
+
+export type CommandType =
+  | "kill_internet"
+  | "restore_internet"
+  | "lock_app"
+  | "unlock_app"
+  | "refresh_rules";
+
+export interface CommandCreate {
+  device_id: string;
+  command_type: CommandType;
+  payload?: Record<string, unknown>;
 }

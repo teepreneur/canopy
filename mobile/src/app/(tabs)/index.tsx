@@ -1,65 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { FlatList, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Avatar } from "../../components/Avatar";
 import { Card } from "../../components/Card";
 import { StatusDot } from "../../components/StatusDot";
 import { useAuth } from "../../lib/auth";
-import { mockAlerts, mockDevices } from "../../lib/mock-data";
-import { colors, borderRadius, spacing } from "../../lib/theme";
-import type { Alert as AlertType, Device } from "../../types/api";
+import { useAlerts } from "../../hooks/useAlerts";
+import { useDevices, useSendCommand } from "../../hooks/useDevices";
+import { useChildren } from "../../hooks/useFamily";
+import { colors, spacing } from "../../lib/theme";
+import type { Alert as AlertType, ChildProfile, Device } from "../../types/api";
 
-function DeviceCard({ device }: { device: Device }) {
-  return (
-    <Pressable onPress={() => router.push(`/device/${device.id}`)}>
-      <Card style={styles.deviceCard}>
-        <View style={styles.deviceRow}>
-          <View style={styles.deviceInfo}>
-            <View style={styles.avatarRow}>
-              <Avatar name={device.child_name ?? device.name} size={36} />
-              <View style={styles.statusBadge}>
-                <StatusDot online={device.is_online} />
-              </View>
-            </View>
-            <View style={styles.deviceText}>
-              <Text style={styles.deviceName}>{device.name}</Text>
-              <Text style={styles.childName}>{device.child_name}</Text>
-            </View>
-          </View>
-          <View style={styles.killSwitch}>
-            <Text style={styles.killLabel}>Internet</Text>
-            <Switch
-              value={device.internet_enabled}
-              onValueChange={() => {}}
-              trackColor={{ false: colors.border, true: colors.sage }}
-              thumbColor={device.internet_enabled ? colors.forest : colors.stone}
-            />
-          </View>
-        </View>
-        <View style={styles.deviceMeta}>
-          <Text style={styles.metaText}>
-            {device.device_type} · {device.is_online ? "Online now" : `Last seen ${timeAgo(device.last_seen)}`}
-          </Text>
-        </View>
-      </Card>
-    </Pressable>
-  );
-}
-
-function AlertPreview({ alert }: { alert: AlertType }) {
-  const severityColor = alert.severity === "high" ? colors.coral : alert.severity === "medium" ? colors.sunlight : colors.stone;
-  return (
-    <View style={styles.alertRow}>
-      <View style={[styles.severityDot, { backgroundColor: severityColor }]} />
-      <View style={styles.alertContent}>
-        <Text style={styles.alertTitle} numberOfLines={1}>{alert.title}</Text>
-        <Text style={styles.alertMeta}>{alert.device_name} · {timeAgo(alert.timestamp)}</Text>
-      </View>
-    </View>
-  );
-}
-
-function timeAgo(timestamp: string): string {
+function timeAgo(timestamp: string | null): string {
+  if (!timestamp) return "never";
   const diff = Date.now() - new Date(timestamp).getTime();
   const minutes = Math.floor(diff / 60000);
   if (minutes < 60) return `${minutes}m ago`;
@@ -68,29 +28,127 @@ function timeAgo(timestamp: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function childName(
+  device: Device,
+  children: ChildProfile[] | undefined,
+): string {
+  if (!device.child_profile_id || !children) return "";
+  return children.find((c) => c.id === device.child_profile_id)?.name ?? "";
+}
+
+function DeviceCard({
+  device,
+  children,
+}: {
+  device: Device;
+  children: ChildProfile[] | undefined;
+}) {
+  const name = childName(device, children);
+  return (
+    <Pressable onPress={() => router.push(`/device/${device.id}`)}>
+      <Card style={styles.deviceCard}>
+        <View style={styles.deviceRow}>
+          <View style={styles.deviceInfo}>
+            <View style={styles.avatarRow}>
+              <Avatar name={name || device.name} size={36} />
+              <View style={styles.statusBadge}>
+                <StatusDot online={device.is_online} />
+              </View>
+            </View>
+            <View style={styles.deviceText}>
+              <Text style={styles.deviceName}>{device.name}</Text>
+              {name ? <Text style={styles.childName}>{name}</Text> : null}
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.stone} />
+        </View>
+        <View style={styles.deviceMeta}>
+          <Text style={styles.metaText}>
+            {device.platform} ·{" "}
+            {device.is_online
+              ? "Online now"
+              : `Last seen ${timeAgo(device.last_heartbeat)}`}
+          </Text>
+        </View>
+      </Card>
+    </Pressable>
+  );
+}
+
+function AlertPreview({ alert }: { alert: AlertType }) {
+  const typeColor =
+    alert.alert_type === "suspicious_activity"
+      ? colors.coral
+      : alert.alert_type === "access_request"
+        ? colors.sunlight
+        : colors.stone;
+  return (
+    <View style={styles.alertRow}>
+      <View style={[styles.severityDot, { backgroundColor: typeColor }]} />
+      <View style={styles.alertContent}>
+        <Text style={styles.alertTitle} numberOfLines={1}>
+          {alert.title}
+        </Text>
+        <Text style={styles.alertMeta}>{timeAgo(alert.created_at)}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function DashboardScreen() {
-  const { user, logout } = useAuth();
-  const devices = mockDevices;
-  const recentAlerts = mockAlerts.filter((a) => !a.is_reviewed).slice(0, 3);
+  const { user } = useAuth();
+  const { data: devices, isLoading: devicesLoading } = useDevices();
+  const { data: alerts } = useAlerts(false, 3);
+  const { data: children } = useChildren();
+
+  const deviceList = devices ?? [];
+  const recentAlerts = alerts ?? [];
+
+  if (devicesLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.forest} />
+      </View>
+    );
+  }
 
   return (
     <FlatList
-      data={devices}
+      data={deviceList}
       keyExtractor={(d) => d.id}
       contentContainerStyle={styles.container}
       ListHeaderComponent={
         <>
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.greeting}>Hello, {user?.full_name?.split(" ")[0] ?? "Parent"}</Text>
-              <Text style={styles.subGreeting}>{devices.filter((d) => d.is_online).length} of {devices.length} devices online</Text>
+              <Text style={styles.greeting}>
+                Hello, {user?.full_name?.split(" ")[0] ?? "Parent"}
+              </Text>
+              <Text style={styles.subGreeting}>
+                {deviceList.filter((d) => d.is_online).length} of{" "}
+                {deviceList.length} devices online
+              </Text>
             </View>
             <View style={styles.headerActions}>
-              <Pressable onPress={() => router.push("/add-device")} style={styles.iconButton}>
-                <Ionicons name="add-circle-outline" size={28} color={colors.forest} />
+              <Pressable
+                onPress={() => router.push("/add-device")}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={28}
+                  color={colors.forest}
+                />
               </Pressable>
-              <Pressable onPress={() => router.push("/settings")} style={styles.iconButton}>
-                <Ionicons name="settings-outline" size={24} color={colors.stone} />
+              <Pressable
+                onPress={() => router.push("/settings")}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name="settings-outline"
+                  size={24}
+                  color={colors.stone}
+                />
               </Pressable>
             </View>
           </View>
@@ -112,13 +170,27 @@ export default function DashboardScreen() {
           <Text style={styles.sectionTitle}>Devices</Text>
         </>
       }
-      renderItem={({ item }) => <DeviceCard device={item} />}
+      renderItem={({ item }) => (
+        <DeviceCard device={item} children={children} />
+      )}
       ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+      ListEmptyComponent={
+        <Card>
+          <Text style={styles.emptyText}>
+            No devices paired yet. Tap + to add one.
+          </Text>
+        </Card>
+      }
     />
   );
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   container: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
@@ -225,19 +297,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.stone,
   },
-  killSwitch: {
-    alignItems: "center",
-  },
-  killLabel: {
-    fontSize: 11,
-    color: colors.stone,
-    marginBottom: 2,
-  },
   deviceMeta: {
     marginTop: spacing.xs,
   },
   metaText: {
     fontSize: 12,
     color: colors.stone,
+  },
+  emptyText: {
+    textAlign: "center",
+    color: colors.stone,
+    paddingVertical: spacing.lg,
   },
 });

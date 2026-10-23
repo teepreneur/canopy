@@ -1,26 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
-import { colors, borderRadius, spacing } from "../lib/theme";
+import { useGeneratePairingCode } from "../hooks/useDevices";
+import { colors, spacing } from "../lib/theme";
 
 export default function AddDeviceScreen() {
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<"idle" | "generated" | "waiting">("idle");
+  const { mutate, data, isPending, isSuccess } = useGeneratePairingCode();
 
-  const generateCode = () => {
-    setLoading(true);
-    // Mock: generate a 6-digit code
-    setTimeout(() => {
-      const code = Math.random().toString().slice(2, 8);
-      setPairingCode(code);
-      setStatus("generated");
-      setLoading(false);
-    }, 800);
-  };
+  const code = data?.code ?? "";
+  const expiresAt = data?.expires_at;
+
+  const expiresIn = expiresAt
+    ? Math.max(
+        0,
+        Math.round(
+          (new Date(expiresAt).getTime() - Date.now()) / 60000,
+        ),
+      )
+    : 0;
 
   return (
     <View style={styles.container}>
@@ -31,44 +30,55 @@ export default function AddDeviceScreen() {
 
         <Text style={styles.title}>Add a Device</Text>
         <Text style={styles.subtitle}>
-          Generate a pairing code, then enter it on the child's device to connect it to your family.
+          Generate a pairing code, then enter it on the child's device to
+          connect it to your family.
         </Text>
 
-        {status === "idle" && (
+        {!isSuccess && (
           <Button
             title="Generate Pairing Code"
-            onPress={generateCode}
-            loading={loading}
+            onPress={() => mutate({})}
+            loading={isPending}
             style={{ marginTop: spacing.lg }}
           />
         )}
 
-        {pairingCode && (
+        {isSuccess && code && (
           <Card style={styles.codeCard}>
             <Text style={styles.codeLabel}>Pairing Code</Text>
             <Text style={styles.code}>
-              {pairingCode.slice(0, 3)}-{pairingCode.slice(3)}
+              {code.length >= 6
+                ? `${code.slice(0, 3)}-${code.slice(3)}`
+                : code}
             </Text>
-            <Text style={styles.codeExpiry}>Expires in 10 minutes</Text>
+            <Text style={styles.codeExpiry}>
+              Expires in {expiresIn} minutes
+            </Text>
 
             <View style={styles.steps}>
               <View style={styles.step}>
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumText}>1</Text>
                 </View>
-                <Text style={styles.stepText}>Open Canopy on the child's Mac</Text>
+                <Text style={styles.stepText}>
+                  Open Canopy on the child's Mac
+                </Text>
               </View>
               <View style={styles.step}>
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumText}>2</Text>
                 </View>
-                <Text style={styles.stepText}>Enter this pairing code when prompted</Text>
+                <Text style={styles.stepText}>
+                  Enter this pairing code when prompted
+                </Text>
               </View>
               <View style={styles.step}>
                 <View style={styles.stepNumber}>
                   <Text style={styles.stepNumText}>3</Text>
                 </View>
-                <Text style={styles.stepText}>The device will appear on your dashboard</Text>
+                <Text style={styles.stepText}>
+                  The device will appear on your dashboard
+                </Text>
               </View>
             </View>
           </Card>

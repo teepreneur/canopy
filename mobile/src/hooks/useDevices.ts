@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../lib/api";
-import type { Device, PairingCode } from "../types/api";
+import type { CommandCreate, Device, PairingCode, PairingCodeCreate } from "../types/api";
 
 export function useDevices() {
   return useQuery({
@@ -19,22 +19,21 @@ export function useDevice(id: string) {
 
 export function useGeneratePairingCode() {
   return useMutation({
-    mutationFn: () =>
-      apiFetch<PairingCode>("/devices/pairing-code", { method: "POST" }),
+    mutationFn: (body?: PairingCodeCreate) =>
+      apiFetch<PairingCode>("/devices/pairing-code", {
+        method: "POST",
+        body: JSON.stringify(body ?? {}),
+      }),
   });
 }
 
-export function useToggleInternet() {
+export function useSendCommand() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ deviceId, enabled }: { deviceId: string; enabled: boolean }) =>
+    mutationFn: (cmd: CommandCreate) =>
       apiFetch("/commands", {
         method: "POST",
-        body: JSON.stringify({
-          device_id: deviceId,
-          command_type: enabled ? "restore_internet" : "kill_internet",
-          payload: {},
-        }),
+        body: JSON.stringify(cmd),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["devices"] });

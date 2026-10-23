@@ -1,21 +1,41 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Card } from "../../components/Card";
-import { mockAlerts } from "../../lib/mock-data";
+import { useAlerts, useAcknowledgeAlert } from "../../hooks/useAlerts";
 import { colors, borderRadius, spacing } from "../../lib/theme";
 import type { Alert } from "../../types/api";
 
-function severityColor(severity: Alert["severity"]) {
-  return severity === "high" ? colors.coral : severity === "medium" ? colors.sunlight : colors.stone;
-}
-
 function alertIcon(type: Alert["alert_type"]): keyof typeof Ionicons.glyphMap {
   switch (type) {
-    case "blocked_attempt": return "ban-outline";
-    case "suspicious_activity": return "warning-outline";
-    case "access_request": return "key-outline";
-    case "device_offline": return "cloud-offline-outline";
+    case "blocked_attempt":
+      return "ban-outline";
+    case "suspicious_activity":
+      return "warning-outline";
+    case "access_request":
+      return "key-outline";
+    case "device_offline":
+      return "cloud-offline-outline";
+  }
+}
+
+function typeColor(type: Alert["alert_type"]): string {
+  switch (type) {
+    case "suspicious_activity":
+      return colors.coral;
+    case "access_request":
+      return colors.sunlight;
+    case "blocked_attempt":
+      return colors.forest;
+    case "device_offline":
+      return colors.stone;
   }
 }
 
@@ -28,36 +48,57 @@ function timeAgo(timestamp: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function AlertCard({ alert, onDismiss }: { alert: Alert; onDismiss: (id: string) => void }) {
+function AlertCard({
+  alert,
+  onAcknowledge,
+}: {
+  alert: Alert;
+  onAcknowledge: (id: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const color = typeColor(alert.alert_type);
 
   return (
-    <Card style={[styles.alertCard, alert.is_reviewed && styles.reviewed]}>
+    <Card style={[styles.alertCard, alert.acknowledged && styles.reviewed]}>
       <Pressable onPress={() => setExpanded(!expanded)}>
         <View style={styles.alertHeader}>
-          <View style={[styles.iconBg, { backgroundColor: severityColor(alert.severity) + "20" }]}>
-            <Ionicons name={alertIcon(alert.alert_type)} size={20} color={severityColor(alert.severity)} />
+          <View style={[styles.iconBg, { backgroundColor: color + "20" }]}>
+            <Ionicons
+              name={alertIcon(alert.alert_type)}
+              size={20}
+              color={color}
+            />
           </View>
           <View style={styles.alertInfo}>
             <Text style={styles.alertTitle}>{alert.title}</Text>
-            <Text style={styles.alertMeta}>
-              {alert.device_name} · {timeAgo(alert.timestamp)}
-            </Text>
+            <Text style={styles.alertMeta}>{timeAgo(alert.created_at)}</Text>
           </View>
-          <View style={[styles.severityBadge, { backgroundColor: severityColor(alert.severity) + "20" }]}>
-            <Text style={[styles.severityText, { color: severityColor(alert.severity) }]}>
-              {alert.severity}
+          <View style={[styles.typeBadge, { backgroundColor: color + "20" }]}>
+            <Text style={[styles.typeText, { color }]}>
+              {alert.alert_type.replace("_", " ")}
             </Text>
           </View>
         </View>
 
         {expanded && (
           <View style={styles.expandedContent}>
-            <Text style={styles.description}>{alert.description}</Text>
-            {!alert.is_reviewed && (
-              <Pressable style={styles.dismissButton} onPress={() => onDismiss(alert.id)}>
-                <Ionicons name="checkmark-circle-outline" size={18} color={colors.forest} />
-                <Text style={styles.dismissText}>Mark as reviewed</Text>
+            {alert.detail && (
+              <Text style={styles.description}>{alert.detail}</Text>
+            )}
+            {alert.target && (
+              <Text style={styles.targetText}>Target: {alert.target}</Text>
+            )}
+            {!alert.acknowledged && (
+              <Pressable
+                style={styles.dismissButton}
+                onPress={() => onAcknowledge(alert.id)}
+              >
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color={colors.forest}
+                />
+                <Text style={styles.dismissText}>Acknowledge</Text>
               </Pressable>
             )}
           </View>
@@ -68,13 +109,16 @@ function AlertCard({ alert, onDismiss }: { alert: Alert; onDismiss: (id: string)
 }
 
 export default function AlertsScreen() {
-  const [alerts, setAlerts] = useState(mockAlerts);
-  const [filter, setFilter] = useState<"all" | "unreviewed">("all");
+  const [filter, setFilter] = useState<"all" | "unacknowledged">("all");
+  const acknowledged = filter === "unacknowledged" ? false : undefined;
+  const { data: alerts, isLoading } = useAlerts(acknowledged);
+  const acknowledge = useAcknowledgeAlert();
 
-  const filtered = filter === "unreviewed" ? alerts.filter((a) => !a.is_reviewed) : alerts;
+  const alertList = alerts ?? [];
+  const unackCount = alertList.filter((a) => !a.acknowledged).length;
 
-  const handleDismiss = (id: string) => {
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_reviewed: true } : a)));
+  const handleAcknowledge = (id: string) => {
+    acknowledge.mutate(id);
   };
 
   return (
@@ -84,37 +128,67 @@ export default function AlertsScreen() {
           style={[styles.filterChip, filter === "all" && styles.filterActive]}
           onPress={() => setFilter("all")}
         >
-          <Text style={[styles.filterText, filter === "all" && styles.filterTextActive]}>All</Text>
+          <Text
+            style={[
+              styles.filterText,
+              filter === "all" && styles.filterTextActive,
+            ]}
+          >
+            All
+          </Text>
         </Pressable>
         <Pressable
-          style={[styles.filterChip, filter === "unreviewed" && styles.filterActive]}
-          onPress={() => setFilter("unreviewed")}
+          style={[
+            styles.filterChip,
+            filter === "unacknowledged" && styles.filterActive,
+          ]}
+          onPress={() => setFilter("unacknowledged")}
         >
-          <Text style={[styles.filterText, filter === "unreviewed" && styles.filterTextActive]}>
-            Unreviewed ({alerts.filter((a) => !a.is_reviewed).length})
+          <Text
+            style={[
+              styles.filterText,
+              filter === "unacknowledged" && styles.filterTextActive,
+            ]}
+          >
+            Unacknowledged ({unackCount})
           </Text>
         </Pressable>
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(a) => a.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => <AlertCard alert={item} onDismiss={handleDismiss} />}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="checkmark-circle" size={48} color={colors.sage} />
-            <Text style={styles.emptyText}>All caught up!</Text>
-          </View>
-        }
-      />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.forest} />
+        </View>
+      ) : (
+        <FlatList
+          data={alertList}
+          keyExtractor={(a) => a.id}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => (
+            <AlertCard alert={item} onAcknowledge={handleAcknowledge} />
+          )}
+          ItemSeparatorComponent={() => (
+            <View style={{ height: spacing.sm }} />
+          )}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="checkmark-circle" size={48} color={colors.sage} />
+              <Text style={styles.emptyText}>All caught up!</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   filterRow: {
     flexDirection: "row",
     gap: spacing.sm,
@@ -174,15 +248,15 @@ const styles = StyleSheet.create({
     color: colors.stone,
     marginTop: 1,
   },
-  severityBadge: {
+  typeBadge: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: borderRadius.full,
   },
-  severityText: {
+  typeText: {
     fontSize: 11,
     fontWeight: "700",
-    textTransform: "uppercase",
+    textTransform: "capitalize",
   },
   expandedContent: {
     marginTop: spacing.sm,
@@ -194,6 +268,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.earth,
     lineHeight: 20,
+  },
+  targetText: {
+    fontSize: 13,
+    color: colors.stone,
+    marginTop: spacing.xs,
   },
   dismissButton: {
     flexDirection: "row",

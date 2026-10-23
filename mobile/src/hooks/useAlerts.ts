@@ -1,24 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../lib/api";
-import type { Alert } from "../types/api";
+import type { Alert, AlertAction } from "../types/api";
 
-export function useAlerts(familyId?: string) {
+export function useAlerts(acknowledged?: boolean, limit = 50) {
   return useQuery({
-    queryKey: ["alerts", familyId],
+    queryKey: ["alerts", acknowledged, limit],
     queryFn: () => {
-      const params = familyId ? `?family_id=${familyId}` : "";
-      return apiFetch<Alert[]>(`/alerts${params}`);
+      const params = new URLSearchParams();
+      if (acknowledged !== undefined) params.set("acknowledged", String(acknowledged));
+      params.set("limit", String(limit));
+      const qs = params.toString();
+      return apiFetch<Alert[]>(`/alerts?${qs}`);
     },
   });
 }
 
-export function useMarkAlertReviewed() {
+export function useAcknowledgeAlert() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (alertId: string) =>
-      apiFetch(`/alerts/${alertId}`, {
+      apiFetch<Alert>(`/alerts/${alertId}`, {
         method: "PUT",
-        body: JSON.stringify({ is_reviewed: true }),
+        body: JSON.stringify({ status: "acknowledged" } satisfies AlertAction),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
