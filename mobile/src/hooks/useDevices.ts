@@ -32,8 +32,8 @@ export function useToggleInternet() {
         method: "POST",
         body: JSON.stringify({
           device_id: deviceId,
-          command_type: "toggle_internet",
-          payload: { enabled },
+          command_type: enabled ? "restore_internet" : "kill_internet",
+          payload: {},
         }),
       }),
     onSuccess: () => {

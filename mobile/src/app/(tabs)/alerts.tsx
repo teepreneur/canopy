@@ -12,11 +12,10 @@ function severityColor(severity: Alert["severity"]) {
 
 function alertIcon(type: Alert["alert_type"]): keyof typeof Ionicons.glyphMap {
   switch (type) {
-    case "blocked_site": return "globe-outline";
-    case "blocked_app": return "apps-outline";
-    case "time_limit": return "time-outline";
-    case "new_app": return "download-outline";
-    case "suspicious": return "warning-outline";
+    case "blocked_attempt": return "ban-outline";
+    case "suspicious_activity": return "warning-outline";
+    case "access_request": return "key-outline";
+    case "device_offline": return "cloud-offline-outline";
   }
 }
 

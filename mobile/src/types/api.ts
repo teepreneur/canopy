@@ -59,7 +59,7 @@ export interface Alert {
   id: string;
   device_id: string;
   device_name: string;
-  alert_type: "blocked_site" | "blocked_app" | "time_limit" | "new_app" | "suspicious";
+  alert_type: "blocked_attempt" | "suspicious_activity" | "access_request" | "device_offline";
   title: string;
   description: string;
   severity: "low" | "medium" | "high";
