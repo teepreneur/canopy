@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import { deleteItem, getItem, setItem } from "./storage";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -6,22 +6,22 @@ let accessToken: string | null = null;
 let refreshToken: string | null = null;
 
 export async function loadTokens() {
-  accessToken = await SecureStore.getItemAsync("access_token");
-  refreshToken = await SecureStore.getItemAsync("refresh_token");
+  accessToken = await getItem("access_token");
+  refreshToken = await getItem("refresh_token");
 }
 
 export async function saveTokens(access: string, refresh: string) {
   accessToken = access;
   refreshToken = refresh;
-  await SecureStore.setItemAsync("access_token", access);
-  await SecureStore.setItemAsync("refresh_token", refresh);
+  await setItem("access_token", access);
+  await setItem("refresh_token", refresh);
 }
 
 export async function clearTokens() {
   accessToken = null;
   refreshToken = null;
-  await SecureStore.deleteItemAsync("access_token");
-  await SecureStore.deleteItemAsync("refresh_token");
+  await deleteItem("access_token");
+  await deleteItem("refresh_token");
 }
 
 export function getAccessToken() {

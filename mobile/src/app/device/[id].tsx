@@ -48,7 +48,7 @@ function ActivityItem({ log }: { log: ActivityLog }) {
       <View style={styles.actInfo}>
         <Text style={[styles.actTitle, log.is_blocked && { color: colors.coral }]}>
           {log.title}
-          {log.is_blocked && " (Blocked)"}
+          {log.is_blocked && !log.title.includes("Blocked") && " (Blocked)"}
         </Text>
         <Text style={styles.actMeta}>
           {log.category ?? log.activity_type} · {timeAgo(log.timestamp)}
