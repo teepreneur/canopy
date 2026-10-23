@@ -9,11 +9,11 @@ from .config import AgentConfig
 
 
 async def register_device(config: AgentConfig, pairing_code: str) -> bool:
-    url = f"{config.backend_url}/api/auth/register-device"
+    url = f"{config.backend_url}/api/v1/devices/register"
     payload = {
         "pairing_code": pairing_code,
         "platform": "macos",
-        "hostname": _get_hostname(),
+        "name": _get_hostname(),
     }
     try:
         async with httpx.AsyncClient(timeout=15) as client:

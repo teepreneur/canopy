@@ -3,18 +3,17 @@ import secrets
 from datetime import datetime, timezone
 from sqlalchemy import String, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
-from app.models.base import Base, UUIDMixin, TimestampMixin
+from app.models.base import Base, UUIDType, UUIDMixin, TimestampMixin
 
 
 class Device(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "devices"
 
     family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("families.id", ondelete="CASCADE")
+        UUIDType, ForeignKey("families.id", ondelete="CASCADE")
     )
     child_profile_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("child_profiles.id", ondelete="SET NULL"),
+        UUIDType, ForeignKey("child_profiles.id", ondelete="SET NULL"),
         nullable=True,
     )
     name: Mapped[str] = mapped_column(String(255))
@@ -37,10 +36,10 @@ class PairingCode(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "pairing_codes"
 
     family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("families.id", ondelete="CASCADE")
+        UUIDType, ForeignKey("families.id", ondelete="CASCADE")
     )
     child_profile_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("child_profiles.id", ondelete="SET NULL"),
+        UUIDType, ForeignKey("child_profiles.id", ondelete="SET NULL"),
         nullable=True,
     )
     code: Mapped[str] = mapped_column(String(8), unique=True, index=True)

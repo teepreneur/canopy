@@ -1,8 +1,7 @@
 import uuid
 from sqlalchemy import String, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
-from app.models.base import Base, UUIDMixin, TimestampMixin
+from app.models.base import Base, UUIDType, UUIDMixin, TimestampMixin
 import enum
 
 
@@ -29,10 +28,10 @@ class FamilyMember(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "family_members"
 
     family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("families.id", ondelete="CASCADE")
+        UUIDType, ForeignKey("families.id", ondelete="CASCADE")
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+        UUIDType, ForeignKey("users.id", ondelete="CASCADE")
     )
     role: Mapped[FamilyRole] = mapped_column(
         SAEnum(FamilyRole), default=FamilyRole.owner

@@ -92,28 +92,34 @@ class ActivityTracker:
         batch = self._sessions[:]
         self._sessions.clear()
 
-        payload = {
-            "device_id": self.config.device_id,
-            "activities": [
-                {
-                    "app_name": s.app_name,
-                    "bundle_id": s.bundle_id,
-                    "window_title": s.window_title,
-                    "start_time": s.start_time,
-                    "end_time": s.end_time,
-                    "duration_seconds": int(s.end_time - s.start_time),
-                    "dns_queries": s.dns_queries[:50],
-                }
-                for s in batch
-            ],
-        }
+        from datetime import datetime, timezone
+        entries = []
+        for s in batch:
+            duration = int(s.end_time - s.start_time)
+            ts = datetime.fromtimestamp(s.start_time, tz=timezone.utc).isoformat()
+            entries.append({
+                "activity_type": "app_usage",
+                "target": s.bundle_id or s.app_name,
+                "title": s.window_title,
+                "duration_seconds": duration,
+                "timestamp": ts,
+            })
+            for domain in s.dns_queries[:10]:
+                entries.append({
+                    "activity_type": "site_visit",
+                    "target": domain,
+                    "title": None,
+                    "duration_seconds": 0,
+                    "timestamp": ts,
+                })
+        payload = {"entries": entries}
 
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
-                    f"{self.config.backend_url}/api/activity",
+                    f"{self.config.backend_url}/api/v1/activity/submit/{self.config.device_id}",
                     json=payload,
-                    headers={"Authorization": f"Bearer {self.config.device_token}"},
+                    headers={"X-Device-Token": self.config.device_token},
                 )
                 resp.raise_for_status()
                 logger.info("Uploaded %d activity sessions", len(batch))

@@ -56,7 +56,7 @@ class WSClient:
         backoff = INITIAL_BACKOFF
         while self._running:
             try:
-                url = f"{self.config.ws_url}/ws/agent?token={self.config.device_token}"
+                url = f"{self.config.ws_url}/ws/agent/{self.config.device_id}?token={self.config.device_token}"
                 async with websockets.connect(url, ping_interval=20, ping_timeout=10) as ws:
                     self._ws = ws
                     self._connected = True

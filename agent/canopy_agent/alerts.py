@@ -29,18 +29,18 @@ class AlertManager:
         self._cleanup_old_alerts()
 
         payload = {
-            "device_id": self.config.device_id,
-            "type": alert_type,
+            "alert_type": alert_type,
+            "title": f"{alert_type}: {detail[:100]}",
             "detail": detail,
-            "timestamp": now,
+            "target": detail,
         }
 
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(
-                    f"{self.config.backend_url}/api/alerts",
+                    f"{self.config.backend_url}/api/v1/alerts/submit/{self.config.device_id}",
                     json=payload,
-                    headers={"Authorization": f"Bearer {self.config.device_token}"},
+                    headers={"X-Device-Token": self.config.device_token},
                 )
                 resp.raise_for_status()
                 logger.info("Alert sent: %s — %s", alert_type, detail)

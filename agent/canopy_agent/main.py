@@ -110,16 +110,29 @@ class CanopyAgent:
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.get(
-                    f"{self.config.backend_url}/api/devices/{self.config.device_id}/rules",
-                    headers={"Authorization": f"Bearer {self.config.device_token}"},
+                    f"{self.config.backend_url}/api/v1/rules/sync/{self.config.device_id}",
+                    headers={"X-Device-Token": self.config.device_token},
                 )
                 resp.raise_for_status()
-                data = resp.json()
-                self.rules.blocked_domains = data.get("blocked_domains", [])
-                self.rules.blocked_apps = data.get("blocked_apps", [])
-                self.rules.schedules = data.get("schedules", [])
+                rules_list = resp.json()
+                blocked_domains = []
+                blocked_apps = []
+                schedules = []
+                for rule in rules_list:
+                    rt = rule.get("rule_type", "")
+                    target = rule.get("target", "")
+                    if rt == "block_site":
+                        blocked_domains.append(target)
+                    elif rt == "block_app":
+                        blocked_apps.append(target)
+                    elif rt == "schedule":
+                        schedules.append(rule)
+                self.rules.blocked_domains = blocked_domains
+                self.rules.blocked_apps = blocked_apps
+                self.rules.schedules = schedules
                 self.rules.save()
-                logger.info("Rules synced from backend")
+                logger.info("Rules synced: %d sites, %d apps blocked",
+                            len(blocked_domains), len(blocked_apps))
         except Exception as e:
             logger.warning("Rules sync failed: %s — using cached rules", e)
 

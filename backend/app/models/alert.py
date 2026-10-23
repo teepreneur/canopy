@@ -2,8 +2,7 @@ import uuid
 import enum
 from sqlalchemy import String, ForeignKey, Boolean, Text, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import UUID
-from app.models.base import Base, UUIDMixin, TimestampMixin
+from app.models.base import Base, UUIDType, UUIDMixin, TimestampMixin
 
 
 class AlertType(str, enum.Enum):
@@ -24,13 +23,13 @@ class Alert(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "alerts"
 
     family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("families.id", ondelete="CASCADE")
+        UUIDType, ForeignKey("families.id", ondelete="CASCADE")
     )
     device_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE")
+        UUIDType, ForeignKey("devices.id", ondelete="CASCADE")
     )
     child_profile_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("child_profiles.id", ondelete="SET NULL"),
+        UUIDType, ForeignKey("child_profiles.id", ondelete="SET NULL"),
         nullable=True,
     )
     alert_type: Mapped[AlertType] = mapped_column(SAEnum(AlertType))

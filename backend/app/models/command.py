@@ -2,8 +2,7 @@ import uuid
 import enum
 from sqlalchemy import String, ForeignKey, Enum as SAEnum, JSON
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import UUID
-from app.models.base import Base, UUIDMixin, TimestampMixin
+from app.models.base import Base, UUIDType, UUIDMixin, TimestampMixin
 
 
 class CommandType(str, enum.Enum):
@@ -25,10 +24,10 @@ class Command(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "commands"
 
     family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("families.id", ondelete="CASCADE")
+        UUIDType, ForeignKey("families.id", ondelete="CASCADE")
     )
     device_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE")
+        UUIDType, ForeignKey("devices.id", ondelete="CASCADE")
     )
     command_type: Mapped[CommandType] = mapped_column(SAEnum(CommandType))
     status: Mapped[CommandStatus] = mapped_column(
