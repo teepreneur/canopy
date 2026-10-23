@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blocked by Canopy</title>
+<style>
+  :root {
+    --forest: #1B5E43;
+    --sage: #74B49B;
+    --sunlight: #E8A838;
+    --coral: #D4654A;
+    --meadow: #F6F4EF;
+    --earth: #2A3130;
+    --stone: #7A8580;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Nunito Sans', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: var(--meadow);
+    color: var(--earth);
+  }
+  .card {
+    text-align: center;
+    padding: 3rem 2.5rem;
+    border-radius: 1.25rem;
+    background: #fff;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    max-width: 440px;
+    width: 90%;
+  }
+  .logo {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+  h1 {
+    font-family: 'Outfit', system-ui, sans-serif;
+    color: var(--forest);
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+  }
+  .domain {
+    color: var(--coral);
+    font-weight: 700;
+    word-break: break-all;
+    font-size: 1.1rem;
+  }
+  p {
+    color: var(--stone);
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+  }
+  .btn {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 0.75rem 2rem;
+    background: var(--forest);
+    color: #fff;
+    border-radius: 0.6rem;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #247a58; }
+  .btn:disabled { background: var(--sage); cursor: default; }
+  .sent { color: var(--sage); font-weight: 600; margin-top: 1rem; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🌿</div>
+  <h1>Blocked by Canopy</h1>
+  <p class="domain">{{DOMAIN}}</p>
+  <p>A parent has restricted access to this site.</p>
+  <p>If you need it for school or something important, you can ask for access.</p>
+  <button class="btn" id="requestBtn" onclick="requestAccess()">Request Access</button>
+  <p class="sent" id="sentMsg" style="display:none">Request sent! A parent will be notified.</p>
+</div>
+<script>
+function requestAccess() {
+  var btn = document.getElementById('requestBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  // The agent's blocked-page server handles this
+  fetch('/api/request-access', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({domain: '{{DOMAIN}}'})
+  }).then(function() {
+    btn.style.display = 'none';
+    document.getElementById('sentMsg').style.display = 'block';
+  }).catch(function() {
+    btn.textContent = 'Request Access';
+    btn.disabled = false;
+  });
+}
+</script>
+</body>
+</html>
