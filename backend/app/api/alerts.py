@@ -6,8 +6,10 @@ from app.db.session import get_db
 from app.models.user import User
 from app.models.device import Device
 from app.models.alert import Alert
+from app.models.family import FamilyMember
 from app.schemas.alert import AlertCreate, AlertOut, AlertAction
 from app.services.auth import get_current_user, get_user_family_id
+from app.services.push import send_push_to_tokens
 from app.ws.manager import manager
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -46,6 +48,19 @@ async def submit_alert(
         "title": alert.title,
         "device_id": str(device_id),
     })
+
+    members_result = await db.execute(
+        select(User).join(FamilyMember).where(FamilyMember.family_id == device.family_id)
+    )
+    tokens = [u.push_token for u in members_result.scalars().all() if u.push_token]
+    if tokens:
+        await send_push_to_tokens(
+            tokens,
+            title=f"Canopy Alert: {alert.title}",
+            body=alert.detail or alert.title,
+            data={"alert_id": str(alert.id), "type": alert.alert_type.value},
+        )
+
     return alert
 
 

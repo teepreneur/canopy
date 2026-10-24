@@ -1,7 +1,9 @@
+import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider } from "../lib/auth";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 import { colors } from "../lib/theme";
 
 const queryClient = new QueryClient({
@@ -10,10 +12,16 @@ const queryClient = new QueryClient({
   },
 });
 
+function NotificationSetup({ children }: { children: React.ReactNode }) {
+  usePushNotifications();
+  return <>{children}</>;
+}
+
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <NotificationSetup>
         <StatusBar style="dark" />
         <Stack
           screenOptions={{
@@ -31,6 +39,7 @@ export default function RootLayout() {
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
           <Stack.Screen name="location" options={{ title: "Location", headerShown: false }} />
         </Stack>
+        </NotificationSetup>
       </AuthProvider>
     </QueryClientProvider>
   );

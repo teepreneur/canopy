@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.session import engine
 from app.models import Base
 from app.services.redis import close_redis
-from app.api import auth, devices, rules, activity, alerts, commands, location
+from app.api import auth, devices, rules, activity, alerts, commands, location, notifications
 from app.ws.gateway import router as ws_router
 
 
@@ -39,6 +39,7 @@ app.include_router(activity.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(commands.router, prefix="/api/v1")
 app.include_router(location.router, prefix="/api/v1")
+app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(ws_router)
 
 
