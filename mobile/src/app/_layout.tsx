@@ -29,6 +29,7 @@ export default function RootLayout() {
           <Stack.Screen name="add-device" options={{ title: "Add Device", presentation: "modal" }} />
           <Stack.Screen name="add-rule" options={{ title: "Add Rule", presentation: "modal" }} />
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
+          <Stack.Screen name="location" options={{ title: "Location", headerShown: false }} />
         </Stack>
       </AuthProvider>
     </QueryClientProvider>

@@ -151,3 +151,36 @@ export interface CommandCreate {
   command_type: CommandType;
   payload?: Record<string, unknown>;
 }
+
+export interface LocationUpdate {
+  id: string;
+  device_id: string;
+  child_profile_id: string | null;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  address: string | null;
+  created_at: string;
+}
+
+export interface Geofence {
+  id: string;
+  family_id: string;
+  child_profile_id: string | null;
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  is_safe_zone: boolean;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface GeofenceCreate {
+  child_profile_id?: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius_meters?: number;
+  is_safe_zone?: boolean;
+}

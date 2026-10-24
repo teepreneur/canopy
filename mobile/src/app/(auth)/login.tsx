@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { Button } from "../../components/Button";
+import { CanopyLogo } from "../../components/CanopyLogo";
 import { useAuth } from "../../lib/auth";
 import { colors, borderRadius, spacing } from "../../lib/theme";
 
@@ -46,7 +47,7 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.logo}>🌳</Text>
+          <CanopyLogo size={56} color={colors.forest} />
           <Text style={styles.title}>canopy</Text>
           <Text style={styles.subtitle}>Welcome back</Text>
         </View>
@@ -100,7 +101,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   logo: {
-    fontSize: 48,
     marginBottom: spacing.sm,
   },
   title: {

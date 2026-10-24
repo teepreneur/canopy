@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { Button } from "../../components/Button";
+import { CanopyLogo } from "../../components/CanopyLogo";
 import { useAuth } from "../../lib/auth";
 import { colors, borderRadius, spacing } from "../../lib/theme";
 
@@ -38,7 +39,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register({ full_name: fullName.trim(), email: email.trim().toLowerCase(), password });
-      router.replace("/(tabs)");
+      router.replace("/(auth)/onboarding");
     } catch (e: any) {
       Alert.alert("Registration failed", "Could not create account. Please try again.");
     } finally {
@@ -56,7 +57,7 @@ export default function RegisterScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.logo}>🌳</Text>
+          <CanopyLogo size={56} color={colors.forest} />
           <Text style={styles.title}>canopy</Text>
           <Text style={styles.subtitle}>Create your family account</Text>
         </View>
@@ -129,7 +130,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   logo: {
-    fontSize: 48,
     marginBottom: spacing.sm,
   },
   title: {

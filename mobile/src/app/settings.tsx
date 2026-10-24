@@ -92,7 +92,9 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: spacing.md,
+    paddingTop: 56,
     paddingBottom: spacing.xxl,
+    backgroundColor: colors.meadow,
   },
   profileRow: {
     flexDirection: "row",

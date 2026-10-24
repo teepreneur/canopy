@@ -1,6 +1,15 @@
 import { deleteItem, getItem, setItem } from "./storage";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+import Constants from "expo-constants";
+
+const getApiBase = () => {
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+  const debuggerHost = Constants.expoConfig?.hostUri?.split(":")[0];
+  if (debuggerHost) return `http://${debuggerHost}:8000/api/v1`;
+  return "http://localhost:8000/api/v1";
+};
+
+const API_BASE = getApiBase();
 
 let accessToken: string | null = null;
 let refreshToken: string | null = null;

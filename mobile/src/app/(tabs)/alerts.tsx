@@ -8,36 +8,12 @@ import {
   Text,
   View,
 } from "react-native";
-import { Card } from "../../components/Card";
 import { useAlerts, useAcknowledgeAlert } from "../../hooks/useAlerts";
-import { colors, borderRadius, spacing } from "../../lib/theme";
-import type { Alert } from "../../types/api";
+import { useChildren } from "../../hooks/useFamily";
+import { colors, spacing } from "../../lib/theme";
+import type { Alert, ChildProfile } from "../../types/api";
 
-function alertIcon(type: Alert["alert_type"]): keyof typeof Ionicons.glyphMap {
-  switch (type) {
-    case "blocked_attempt":
-      return "ban-outline";
-    case "suspicious_activity":
-      return "warning-outline";
-    case "access_request":
-      return "key-outline";
-    case "device_offline":
-      return "cloud-offline-outline";
-  }
-}
-
-function typeColor(type: Alert["alert_type"]): string {
-  switch (type) {
-    case "suspicious_activity":
-      return colors.coral;
-    case "access_request":
-      return colors.sunlight;
-    case "blocked_attempt":
-      return colors.forest;
-    case "device_offline":
-      return colors.stone;
-  }
-}
+const CHILD_AVATAR_COLORS = [colors.sunlight, colors.sage, "#c9947d", colors.stone];
 
 function timeAgo(timestamp: string): string {
   const diff = Date.now() - new Date(timestamp).getTime();
@@ -48,111 +24,138 @@ function timeAgo(timestamp: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+type FilterType = "all" | "requests" | "warnings" | "info";
+
+const FILTERS: { key: FilterType; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "requests", label: "Requests" },
+  { key: "warnings", label: "Warnings" },
+  { key: "info", label: "Info" },
+];
+
+function matchesFilter(alert: Alert, filter: FilterType): boolean {
+  if (filter === "all") return true;
+  if (filter === "requests") return alert.alert_type === "access_request";
+  if (filter === "warnings")
+    return (
+      alert.alert_type === "suspicious_activity" ||
+      alert.alert_type === "blocked_attempt"
+    );
+  return alert.alert_type === "device_offline";
+}
+
 function AlertCard({
   alert,
+  childList,
   onAcknowledge,
 }: {
   alert: Alert;
+  childList: ChildProfile[];
   onAcknowledge: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const color = typeColor(alert.alert_type);
+  const child = childList.find((c) => c.id === alert.child_profile_id);
+  const avatarBg = child
+    ? CHILD_AVATAR_COLORS[child.name.charCodeAt(0) % CHILD_AVATAR_COLORS.length]
+    : colors.stone;
 
   return (
-    <Card style={[styles.alertCard, alert.acknowledged && styles.reviewed]}>
-      <Pressable onPress={() => setExpanded(!expanded)}>
-        <View style={styles.alertHeader}>
-          <View style={[styles.iconBg, { backgroundColor: color + "20" }]}>
-            <Ionicons
-              name={alertIcon(alert.alert_type)}
-              size={20}
-              color={color}
-            />
-          </View>
-          <View style={styles.alertInfo}>
-            <Text style={styles.alertTitle}>{alert.title}</Text>
-            <Text style={styles.alertMeta}>{timeAgo(alert.created_at)}</Text>
-          </View>
-          <View style={[styles.typeBadge, { backgroundColor: color + "20" }]}>
-            <Text style={[styles.typeText, { color }]}>
-              {alert.alert_type.replace("_", " ")}
-            </Text>
-          </View>
+    <View style={[styles.alertCard, alert.acknowledged && styles.reviewed]}>
+      <View style={styles.alertTop}>
+        <View style={[styles.alertAvatar, { backgroundColor: avatarBg }]}>
+          <Text style={styles.alertAvatarText}>
+            {child?.name.charAt(0).toUpperCase() ?? "?"}
+          </Text>
         </View>
+        <Text style={styles.alertWho}>{child?.name ?? "Unknown"}</Text>
+        <Text style={styles.alertWhen}>{timeAgo(alert.created_at)}</Text>
+      </View>
 
-        {expanded && (
-          <View style={styles.expandedContent}>
-            {alert.detail && (
-              <Text style={styles.description}>{alert.detail}</Text>
-            )}
-            {alert.target && (
-              <Text style={styles.targetText}>Target: {alert.target}</Text>
-            )}
-            {!alert.acknowledged && (
+      {alert.alert_type === "access_request" && alert.detail ? (
+        <View style={styles.alertMsgBg}>
+          <Text style={styles.alertMsgText}>{alert.detail}</Text>
+        </View>
+      ) : (
+        <Text style={styles.alertWhat}>
+          {alert.title}
+          {alert.target ? ` — ${alert.target}` : ""}
+        </Text>
+      )}
+
+      {!alert.acknowledged && (
+        <View style={styles.actionBtns}>
+          {alert.alert_type === "access_request" ? (
+            <>
               <Pressable
-                style={styles.dismissButton}
+                style={styles.btnAllow}
                 onPress={() => onAcknowledge(alert.id)}
               >
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={18}
-                  color={colors.forest}
-                />
-                <Text style={styles.dismissText}>Acknowledge</Text>
+                <Text style={styles.btnAllowText}>Allow</Text>
               </Pressable>
-            )}
-          </View>
-        )}
-      </Pressable>
-    </Card>
+              <Pressable
+                style={styles.btnDeny}
+                onPress={() => onAcknowledge(alert.id)}
+              >
+                <Text style={styles.btnDenyText}>Not now</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable
+              style={styles.dismissButton}
+              onPress={() => onAcknowledge(alert.id)}
+            >
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={18}
+                color={colors.forest}
+              />
+              <Text style={styles.dismissText}>Acknowledge</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </View>
   );
 }
 
 export default function AlertsScreen() {
-  const [filter, setFilter] = useState<"all" | "unacknowledged">("all");
-  const acknowledged = filter === "unacknowledged" ? false : undefined;
-  const { data: alerts, isLoading } = useAlerts(acknowledged);
+  const [filter, setFilter] = useState<FilterType>("all");
+  const { data: alerts, isLoading } = useAlerts();
+  const { data: children } = useChildren();
   const acknowledge = useAcknowledgeAlert();
 
+  const childList = children ?? [];
   const alertList = alerts ?? [];
-  const unackCount = alertList.filter((a) => !a.acknowledged).length;
-
-  const handleAcknowledge = (id: string) => {
-    acknowledge.mutate(id);
-  };
+  const filtered = alertList.filter((a) => matchesFilter(a, filter));
+  const pendingCount = alertList.filter((a) => !a.acknowledged).length;
 
   return (
     <View style={styles.flex}>
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <Text style={styles.pageTitle}>Alerts</Text>
+          <Text style={styles.pendingCount}>
+            {pendingCount} pending
+          </Text>
+        </View>
+      </View>
+
       <View style={styles.filterRow}>
-        <Pressable
-          style={[styles.filterChip, filter === "all" && styles.filterActive]}
-          onPress={() => setFilter("all")}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              filter === "all" && styles.filterTextActive,
-            ]}
+        {FILTERS.map((f) => (
+          <Pressable
+            key={f.key}
+            style={[styles.filterChip, filter === f.key && styles.filterActive]}
+            onPress={() => setFilter(f.key)}
           >
-            All
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.filterChip,
-            filter === "unacknowledged" && styles.filterActive,
-          ]}
-          onPress={() => setFilter("unacknowledged")}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              filter === "unacknowledged" && styles.filterTextActive,
-            ]}
-          >
-            Unacknowledged ({unackCount})
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.filterText,
+                filter === f.key && styles.filterTextActive,
+              ]}
+            >
+              {f.label}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
       {isLoading ? (
@@ -161,15 +164,17 @@ export default function AlertsScreen() {
         </View>
       ) : (
         <FlatList
-          data={alertList}
+          data={filtered}
           keyExtractor={(a) => a.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <AlertCard alert={item} onAcknowledge={handleAcknowledge} />
+            <AlertCard
+              alert={item}
+              childList={childList}
+              onAcknowledge={(id) => acknowledge.mutate(id)}
+            />
           )}
-          ItemSeparatorComponent={() => (
-            <View style={{ height: spacing.sm }} />
-          )}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="checkmark-circle" size={48} color={colors.sage} />
@@ -183,24 +188,47 @@ export default function AlertsScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  flex: { flex: 1, backgroundColor: colors.meadow },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
+  header: {
+    paddingTop: 56,
+    paddingHorizontal: spacing.md,
+    paddingBottom: 14,
+    backgroundColor: colors.meadow,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pageTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: colors.earth,
+    letterSpacing: -0.5,
+  },
+  pendingCount: {
+    fontSize: 12,
+    color: colors.stone,
+    fontWeight: "600",
+  },
   filterRow: {
     flexDirection: "row",
-    gap: spacing.sm,
-    padding: spacing.md,
+    gap: 7,
+    paddingHorizontal: spacing.md,
     paddingBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   filterChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: colors.white,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
   },
   filterActive: {
@@ -208,8 +236,8 @@ const styles = StyleSheet.create({
     borderColor: colors.forest,
   },
   filterText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
     color: colors.stone,
   },
   filterTextActive: {
@@ -217,68 +245,102 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: spacing.md,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 24,
   },
-  alertCard: {},
+  alertCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 20,
+    padding: spacing.md,
+    shadowColor: "#2A3130",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   reviewed: {
     opacity: 0.6,
   },
-  alertHeader: {
+  alertTop: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: 12,
+    marginBottom: 10,
   },
-  iconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  alertAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
-  alertInfo: {
+  alertAvatarText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  alertWho: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.earth,
     flex: 1,
   },
-  alertTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.earth,
-  },
-  alertMeta: {
-    fontSize: 12,
-    color: colors.stone,
-    marginTop: 1,
-  },
-  typeBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-  },
-  typeText: {
+  alertWhen: {
     fontSize: 11,
-    fontWeight: "700",
-    textTransform: "capitalize",
+    color: colors.stone,
   },
-  expandedContent: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+  alertMsgBg: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: colors.meadow,
+    borderRadius: 14,
+    marginBottom: 12,
   },
-  description: {
-    fontSize: 14,
-    color: colors.earth,
-    lineHeight: 20,
-  },
-  targetText: {
+  alertMsgText: {
     fontSize: 13,
     color: colors.stone,
-    marginTop: spacing.xs,
+    lineHeight: 19,
+    fontStyle: "italic",
+  },
+  alertWhat: {
+    fontSize: 13,
+    color: colors.stone,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  actionBtns: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  btnAllow: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: colors.forest,
+    alignItems: "center",
+  },
+  btnAllowText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  btnDeny: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#fbeae6",
+    alignItems: "center",
+  },
+  btnDenyText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.coral,
   },
   dismissButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-    marginTop: spacing.sm,
     paddingVertical: spacing.xs,
   },
   dismissText: {
