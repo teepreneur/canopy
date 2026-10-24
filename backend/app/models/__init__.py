@@ -7,9 +7,10 @@ from app.models.rule import BlockingRule
 from app.models.activity import ActivityLog
 from app.models.alert import Alert
 from app.models.command import Command
+from app.models.location import LocationUpdate, Geofence
 
 __all__ = [
     "Base", "User", "Family", "FamilyMember", "ChildProfile",
     "Device", "PairingCode", "BlockingRule", "ActivityLog",
-    "Alert", "Command",
+    "Alert", "Command", "LocationUpdate", "Geofence",
 ]
