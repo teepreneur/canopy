@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: canopy-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    envVars:
+      - key: CANOPY_DATABASE_URL
+        fromDatabase:
+          name: canopy-db
+          property: connectionURI
+      - key: CANOPY_SECRET_KEY
+        generateValue: true
+      - key: CANOPY_REDIS_URL
+        value: ""
+
+databases:
+  - name: canopy-db
+    plan: free
+    databaseName: canopy
+    user: canopy
